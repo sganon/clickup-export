@@ -9,34 +9,59 @@ import (
 type DocID string
 
 type Doc struct {
-	ID     DocID        `json:"id"`
-	Name   string       `json:"name"`
-	Parent ParentObject `json:"parent"`
+	ID       DocID        `json:"id"`
+	Name     string       `json:"name"`
+	Parent   ParentObject `json:"parent"`
+	Archived bool         `json:"archived"`
+	Deleted  bool         `json:"deleted"`
+	Type     int          `json:"type"`
+	Creator  int          `json:"creator"`
+	Pages    []Page       `json:"-"`
 }
 
-func (c *ClickupClient) SearchDocs(ctx context.Context, wks WorkspaceID) ([]Doc, error) {
-	docs := []Doc{}
-	if err := c.recursiveSearchDoc(ctx, wks, &docs, ""); err != nil {
+func (c *ClickupClient) GetSpaceDocs(ctx context.Context, wks WorkspaceID, spaceID SpaceID) ([]*Doc, error) {
+	return c.SearchDocs(ctx, wks, url.Values{
+		"parent_type": []string{"SPACE"},
+		"parent_id":   []string{string(spaceID)},
+	})
+}
+
+func (c *ClickupClient) GetListDocs(ctx context.Context, wks WorkspaceID, listID ListID) ([]*Doc, error) {
+	return c.SearchDocs(ctx, wks, url.Values{
+		"parent_type": []string{"LIST"},
+		"parent_id":   []string{string(listID)},
+	})
+}
+
+func (c *ClickupClient) GetFolderDocs(ctx context.Context, wks WorkspaceID, folderID FolderID) ([]*Doc, error) {
+	return c.SearchDocs(ctx, wks, url.Values{
+		"parent_type": []string{"FOLDER"},
+		"parent_id":   []string{string(folderID)},
+	})
+}
+
+func (c *ClickupClient) SearchDocs(ctx context.Context, wks WorkspaceID, params url.Values) ([]*Doc, error) {
+	docs := []*Doc{}
+	if err := c.recursiveSearchDoc(ctx, wks, params, &docs, ""); err != nil {
 		return nil, fmt.Errorf("error making a recursive search: %w", err)
 	}
 
 	return docs, nil
 }
 
-func (c *ClickupClient) recursiveSearchDoc(ctx context.Context, wks WorkspaceID, docs *[]Doc, cursor string) error {
+func (c *ClickupClient) recursiveSearchDoc(ctx context.Context, wks WorkspaceID, params url.Values, docs *[]*Doc, cursor string) error {
 	type responseBody struct {
-		Docs       []Doc  `json:"docs"`
+		Docs       []*Doc `json:"docs"`
 		NextCursor string `json:"next_cursor"`
 	}
 	var rb responseBody
-	if err := c.request(ctx, "GET", fmt.Sprintf("/workspaces/%s/docs", wks), url.Values{
-		"next_cursor": []string{cursor},
-	}, nil, &rb); err != nil {
+	params.Set("next_cursor", cursor)
+	if err := c.request(ctx, "GET", fmt.Sprintf("/v3/workspaces/%s/docs", wks), params, nil, &rb); err != nil {
 		return fmt.Errorf("error searching docs: %w", err)
 	}
 	*docs = append(*docs, rb.Docs...)
 	if rb.NextCursor != "" {
-		return c.recursiveSearchDoc(ctx, wks, docs, rb.NextCursor)
+		return c.recursiveSearchDoc(ctx, wks, params, docs, rb.NextCursor)
 	}
 
 	return nil

@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const ClickupAPIBaseURL = "https://api.clickup.com/api/v3"
+const ClickupAPIBaseURL = "https://api.clickup.com/api"
 
 type ClickupClient struct {
 	token string
@@ -23,6 +23,12 @@ func NewClickupClient(token string) *ClickupClient {
 	}
 }
 
+type ErrUnexpectedStatusCode int
+
+func (e ErrUnexpectedStatusCode) Error() string {
+	return fmt.Sprintf("unexpected status code %d", e)
+}
+
 func (c *ClickupClient) request(ctx context.Context, method, path string, params url.Values, body any, dest any) error {
 	endpoint := fmt.Sprintf("%s%s", ClickupAPIBaseURL, path)
 	u, err := url.Parse(endpoint)
@@ -30,6 +36,7 @@ func (c *ClickupClient) request(ctx context.Context, method, path string, params
 		return fmt.Errorf("invalid endpoint %s: %w", endpoint, err)
 	}
 	u.RawQuery = params.Encode()
+	fmt.Println(u.String())
 
 	var b io.Reader
 	if body != nil {
@@ -60,7 +67,7 @@ func (c *ClickupClient) request(ctx context.Context, method, path string, params
 	defer res.Body.Close()
 
 	if res.StatusCode >= http.StatusBadRequest {
-		return fmt.Errorf("unexpected status code %d", res.StatusCode)
+		return ErrUnexpectedStatusCode(res.StatusCode)
 	}
 
 	if dest != nil {

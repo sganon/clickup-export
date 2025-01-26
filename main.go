@@ -28,14 +28,19 @@ func run(ctx context.Context) error {
 		},
 		Action: func(c *cli.Context) error {
 			cup := NewClickupClient(c.String("token"))
-			wks := WorkspaceID(c.String("workspace-id"))
+			wks := Workspace{ID: WorkspaceID(c.String("workspace-id"))}
 
-			docs, err := cup.SearchDocs(ctx, wks)
+			spaces, err := cup.GetWorkspaceSpaces(ctx, wks.ID)
 			if err != nil {
-				return fmt.Errorf("error searching docs: %w", err)
+				return fmt.Errorf("error getting space from workspace: %w", err)
 			}
 
-			fmt.Println(docs)
+			for _, s := range spaces {
+				fmt.Printf("Space %s:\n", s.Name)
+				if err := PopulateSpace(ctx, cup, wks.ID, s); err != nil {
+					return fmt.Errorf("error populating space: %w", err)
+				}
+			}
 
 			return nil
 		},
