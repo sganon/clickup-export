@@ -9,17 +9,21 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
 const ClickupAPIBaseURL = "https://api.clickup.com/api"
 
 type ClickupClient struct {
-	token string
+	token   string
+	limiter *rate.Limiter
 }
 
 func NewClickupClient(token string) *ClickupClient {
 	return &ClickupClient{
-		token: token,
+		token:   token,
+		limiter: rate.NewLimiter(rate.Limit(99.0/60.0), 1),
 	}
 }
 
@@ -30,6 +34,9 @@ func (e ErrUnexpectedStatusCode) Error() string {
 }
 
 func (c *ClickupClient) request(ctx context.Context, method, path string, params url.Values, body any, dest any) error {
+	if err := c.limiter.Wait(ctx); err != nil {
+		return fmt.Errorf("error waiting limiter: %w", err)
+	}
 	endpoint := fmt.Sprintf("%s%s", ClickupAPIBaseURL, path)
 	u, err := url.Parse(endpoint)
 	if err != nil {
@@ -58,7 +65,7 @@ func (c *ClickupClient) request(ctx context.Context, method, path string, params
 	}
 
 	client := http.Client{
-		Timeout: time.Minute,
+		Timeout: time.Minute * 5,
 	}
 	res, err := client.Do(req)
 	if err != nil {

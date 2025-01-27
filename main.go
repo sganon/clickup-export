@@ -25,6 +25,7 @@ func run(ctx context.Context) error {
 				Name:  "workspace-id",
 				Usage: "Your workspace ID",
 			},
+			&cli.StringFlag{Name: "out-dir", Usage: "Where your export will be saved", Value: "out"},
 		},
 		Action: func(c *cli.Context) error {
 			cup := NewClickupClient(c.String("token"))
@@ -39,6 +40,9 @@ func run(ctx context.Context) error {
 				fmt.Printf("Space %s:\n", s.Name)
 				if err := PopulateSpace(ctx, cup, wks.ID, s); err != nil {
 					return fmt.Errorf("error populating space: %w", err)
+				}
+				if err := SaveSpace(c.String("out-dir"), s); err != nil {
+					return fmt.Errorf("error saving space: %w", err)
 				}
 			}
 
